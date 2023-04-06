@@ -6,11 +6,15 @@ from flask_bcrypt import Bcrypt
 from flask import abort
 import jwt
 import datetime
+from dotenv import load_dotenv
+import os
 app = Flask(__name__)
 ma = Marshmallow(app)
 bcrypt = Bcrypt(app)
-from .db_config import DB_CONFIG
-app.config['SQLALCHEMY_DATABASE_URI'] = DB_CONFIG
+
+load_dotenv()
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DB_CONFIG")
+print(os.getenv("DB_CONFIG"))
 db = SQLAlchemy(app)
 
 SECRET_KEY = "b'|\xe7\xbfU3`\xc4\xec\xa7\xa9zf:}\xb5\xc7\xb9\x139^3@Dv'"
