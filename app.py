@@ -8,6 +8,7 @@ import jwt
 import datetime
 from dotenv import load_dotenv
 import os
+import gunicorn
 app = Flask(__name__)
 ma = Marshmallow(app)
 bcrypt = Bcrypt(app)
