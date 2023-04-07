@@ -1,5 +1,9 @@
+from flask_sqlalchemy import SQLAlchemy
+from flask_bcrypt import Bcrypt
 
-from ..app import db, ma, bcrypt
+db = SQLAlchemy()
+bcrypt = Bcrypt()
+
 class User(db.Model):
     __tablename__ = "users"
     __table_args__ = {'schema': 'aubcovax'}
@@ -12,7 +16,3 @@ class User(db.Model):
         super(User, self).__init__(user_name=user_name)
         self.hashed_password = bcrypt.generate_password_hash(password)
 
-class UserSchema(ma.Schema):
-    class Meta:
-        fields = ("id", "user_name", "role")
-        model = User

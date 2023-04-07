@@ -1,26 +1,24 @@
 from flask import Flask, request, jsonify
-from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
-from flask_marshmallow import Marshmallow
-from flask_bcrypt import Bcrypt
 from flask import abort
 import jwt
 import datetime
 from dotenv import load_dotenv
 import os
-import gunicorn
+
+from database import  bcrypt, db, User
+from schemas import  user_schema, users_schema
+
 app = Flask(__name__)
-ma = Marshmallow(app)
-bcrypt = Bcrypt(app)
 
 load_dotenv()
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DB_CONFIG")
-print(os.getenv("DB_CONFIG"))
-db = SQLAlchemy(app)
+
+db.app = app
+db.init_app(app)
+bcrypt.init_app(app)
 
 SECRET_KEY = "b'|\xe7\xbfU3`\xc4\xec\xa7\xa9zf:}\xb5\xc7\xb9\x139^3@Dv'"
-
-#db = SQLAlchemy(app)
 
 
 @app.route('/hello', methods=['GET'])
@@ -105,7 +103,6 @@ def create_token(user_id):
 
 
 CORS(app)
-from .model.user import User, UserSchema
 
-user_schema=UserSchema()
-users_schema=UserSchema(many=True)
+if __name__ == '__main__':
+    app.run(debug=True)
