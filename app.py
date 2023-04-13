@@ -50,6 +50,20 @@ def Create_User():
     check_field(request, "date_of_birth", 30)
     check_field(request, "id_card", -1)
     
+    # Check if the user already exists
+    user = User.query.filter_by(user_name=request.json["user_name"]).first()
+    if user:
+        return jsonify([f"Failed to create resource (username {user.user_name} already exists)"]), 409
+    user = User.query.filter_by(email=request.json["email"]).first()
+    if user:
+        return jsonify([f"Failed to create resource (email {user.email} already exists)"]), 409
+    user = User.query.filter_by(phone_number=request.json["phone_number"]).first()
+    if user:
+        return jsonify([f"Failed to create resource (phone number {user.phone_number} already exists)"]), 409
+    user = User.query.filter_by(id_card=request.json["id_card"]).first()
+    if user:
+        return jsonify([f"Failed to create resource (id_card {user.id_card} already exists)"]), 409
+
 
     u=User(user_name=request.json["user_name"],password=request.json["password"], first_name=request.json["first_name"], 
            last_name=request.json["last_name"], email=request.json["email"], phone_number=request.json["phone_number"], 
@@ -88,6 +102,49 @@ def check_token():
             abort(403)
 
     abort(403)
+
+@app.route("/users", methods=["GET"])
+def get_users():
+    if (extract_auth_token(request) is not None):
+        try:
+            user_id = decode_token(extract_auth_token(request))
+            if (User.query.get(user_id).role != "admin"):
+                abort(403)
+            users = User.query.filter(User.role != "admin")
+            return jsonify(users_schema.dump(users)), 200
+        except jwt.ExpiredSignatureError:
+            abort(403)
+        except jwt.InvalidTokenError:
+            abort(403)
+    
+@app.route("/generate_admin", methods=["POST"])
+def generate_admin():
+    if (User.query.filter_by(user_name="admin").first() is not None):
+        abort(409)
+    user=User(user_name="admin",password="admin", first_name="admin",
+              last_name="admin", email="admin@example.com", phone_number="0000000000",
+                city="admin", country="admin", medical_conditions="admin",
+                date_of_birth=datetime.datetime.strptime("2020-01-01",'%Y-%m-%d').date(), id_card=000, role="admin")
+    db.session.add(user)
+    db.session.commit()
+    return jsonify(user_schema.dump(user)), 201
+
+
+@app.route("/user/phone", methods=["GET"])
+def get_user_by_phone_number():
+    phone_number = request.args.get("number")
+    if (extract_auth_token(request) is not None):
+        try:
+            user_id = decode_token(extract_auth_token(request))
+            if (User.query.get(user_id).role == "user"):
+                abort(403)
+            user = User.query.filter_by(phone_number=phone_number).first()
+            return jsonify(user_schema.dump(user)), 200
+        except jwt.ExpiredSignatureError:
+            abort(403)
+        except jwt.InvalidTokenError:
+            abort(403)
+
 
 def extract_auth_token(authenticated_request):
     auth_header = authenticated_request.headers.get('Authorization')

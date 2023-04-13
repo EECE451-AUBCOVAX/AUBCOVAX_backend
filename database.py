@@ -13,15 +13,15 @@ class User(db.Model):
     role = db.Column(db.String(30), default="user")
     first_name = db.Column(db.String(30))
     last_name = db.Column(db.String(30))
-    email = db.Column(db.String(30))
-    phone_number = db.Column(db.String(30))
+    email = db.Column(db.String(30), unique=True)
+    phone_number = db.Column(db.String(30), unique=True)
     city = db.Column(db.String(30))
     country = db.Column(db.String(30))
     medical_conditions = db.Column(db.String(100))
     date_of_birth = db.Column(db.Date)
-    id_card = db.Column(db.Integer)
+    id_card = db.Column(db.Integer, unique=True)
 
-    def __init__(self, user_name, password, first_name, last_name, email, phone_number, city, country, medical_conditions, date_of_birth, id_card):
+    def __init__(self, user_name, password, first_name, last_name, email, phone_number, city, country, medical_conditions, date_of_birth, id_card, role="user"):
         super(User, self).__init__(user_name=user_name)
         self.hashed_password = bcrypt.generate_password_hash(password)
         self.first_name = first_name
@@ -33,5 +33,19 @@ class User(db.Model):
         self.medical_conditions = medical_conditions
         self.date_of_birth = date_of_birth
         self.id_card = id_card
+        self.role = role
+
         
 
+class Reservation(db.Model):
+    __tablename__ = "reservations"
+    __table_args__ = {'schema': 'aubcovax'}
+    id = db.Column(db.Integer, primary_key=True)
+    personel = db.Column(db.String(30), db.ForeignKey("aubcovax.users.user_name"))
+    patient = db.Column(db.String(30), db.ForeignKey("aubcovax.users.user_name"))
+    date = db.Column(db.Date)
+    time = db.Column(db.Time)
+    status = db.Column(db.String(30), default="pending")
+
+    def __init__(self, user_id, vaccine_id, date, time, status="pending"):
+        super(Reservation, self).__init__(user_id=user_id, vaccine_id=vaccine_id, date=date, time=time, status=status)
