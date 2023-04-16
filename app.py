@@ -119,14 +119,14 @@ def generate_personel():
     while(User.query.filter_by(phone_number=randPhone).first() is not None):
         randPhone = ''.join(random.choices(string.digits, k=8))
     
-    u=User(user_name=randUser,password=passw, first_name=randUser,
+    user=User(user_name=randUser,password=passw, first_name=randUser,
               last_name=randUser, email=randUser+"@personel.com", phone_number="", 
               city="Beirut", country="Lebanon", medical_conditions="None", 
               date_of_birth=datetime.datetime.strptime("2000-01-01",'%Y-%m-%d').date(), id_card="00000000")
-    
-    db.session.add(u)
+    user.role="personel"
+    db.session.add(user)
     db.session.commit()
-    return jsonify(user_schema.dump(u)), 201
+    return jsonify(user_schema.dump(user)), 201
 
 @app.route("/users", methods=["GET"])
 def get_users():
