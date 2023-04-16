@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 import os
 
 from database import  bcrypt, db, User, Reservation
-from schemas import  user_schema, users_schema, reservation_schema, reservations_schema
+from schemas import  user_schema, users_schema, reservation_schema, reservations_schema, light_user_schema, personel_schema, personels_schema
 
 import random
 import string
@@ -174,7 +174,7 @@ def get_user_by_phone_number():
             if (User.query.get(user_id).role == "user"):
                 abort(403)
             user = User.query.filter_by(phone_number=phone_number).filter(User.role == "user").first()
-            return jsonify(user_schema.dump(user)), 200
+            return jsonify(light_user_schema.dump(user)), 200
         except jwt.ExpiredSignatureError:
             abort(403)
         except jwt.InvalidTokenError:
@@ -204,7 +204,11 @@ def get_user_personel():
             if (user.role != "admin"):
                 abort(403)
             personel = User.query.filter(User.role == "personel")
-            return jsonify(users_schema.dump(personel)), 200
+            if (personel is None):
+                abort(404)
+            if (personel.count() == 1):
+                return jsonify(personel_schema.dump(personel.first())), 200
+            return jsonify(personels_schema.dump(personel)), 200
         except jwt.ExpiredSignatureError:
             abort(403)
         except jwt.InvalidTokenError:
@@ -298,14 +302,52 @@ def get_user_reserve():
                     return jsonify(reservation_schema.dump(reservation)), 201
             else:
                 return jsonify("User already has taken his first dose"), 400
-
-
-
-            
         except jwt.ExpiredSignatureError:
             abort(403)
         except jwt.InvalidTokenError:
             abort(403)
+    abort(403)
+
+@app.route("/personel/reserve", methods=["POST"])
+def get_personel_reserve():
+    if (extract_auth_token(request) is not None):
+        try:
+            personel_id = decode_token(extract_auth_token(request))
+            personel = User.query.get(personel_id)
+            if (personel is None):
+                abort(403)
+            if (personel.role != "personel"):
+                abort(403)
+            patient = request.json['patient']
+            userReservations = Reservation.query.filter(Reservation.patient == patient)
+            if (userReservations.count() != 1):
+                return jsonify("Patient has not taken his first dose yet"), 400
+            personelReservation = Reservation.query.filter(Reservation.personel == personel.user_name).filter(Reservation.date>datetime.datetime.today()).order_by(Reservation.date).order_by(Reservation.time)
+            if (personelReservation.count() == 0):
+                reservation = Reservation(date=datetime.date.today()+datetime.timedelta(1), Patient=patient, Personel=personel.user_name, time=datetime.time(8,00))
+                db.session.add(reservation)
+                db.session.commit()
+                return jsonify(reservation_schema.dump(reservation)), 201
+            else:
+                time = personelReservation[personelReservation.count()-1].time
+                date = personelReservation[personelReservation.count()-1].date
+                if (time == datetime.time(17,30)):
+                    date = personelReservation[personelReservation.count()-1].date+datetime.timedelta(1)
+                    time = datetime.time(8,00)
+                else:
+                    time=(datetime.datetime.combine(personelReservation[personelReservation.count()-1].date,
+                                                time)+datetime.timedelta(minutes=30)).time()
+
+                    date = personelReservation[personelReservation.count()-1].date
+                reservation = Reservation(date=date, Patient=patient, Personel=personel.user_name, time=time)
+                db.session.add(reservation)
+                db.session.commit()
+                return jsonify(reservation_schema.dump(reservation)), 201
+        except jwt.ExpiredSignatureError:
+            abort(403)
+        except jwt.InvalidTokenError:
+            abort(403)
+
     abort(403)
 
 def extract_auth_token(authenticated_request):
