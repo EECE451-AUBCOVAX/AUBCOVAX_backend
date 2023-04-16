@@ -6,8 +6,8 @@ import datetime
 from dotenv import load_dotenv
 import os
 
-from database import  bcrypt, db, User
-from schemas import  user_schema, users_schema
+from database import  bcrypt, db, User, Reservation
+from schemas import  user_schema, users_schema, reservation_schema, reservations_schema
 
 import random
 import string
@@ -232,6 +232,30 @@ def get_user_patient():
                 abort(403)
             users = User.query.filter(User.role == "user")
             return jsonify(users_schema.dump(users)), 200
+        except jwt.ExpiredSignatureError:
+            abort(403)
+        except jwt.InvalidTokenError:
+            abort(403)
+    abort(403)
+
+@app.route("/user/reserve", methods=["POST"])
+def get_user_reserve():
+    if (extract_auth_token(request) is not None):
+        try:
+            user_id = decode_token(extract_auth_token(request))
+            user = User.query.get(user_id)
+            if (user is None):
+                abort(403)
+            if (user.role != "patient"):
+                abort(403)
+            numPersonel = len(User.query.filter_by(User.role=="personel"))
+            reservations = Reservation.query.filter_by(Reservation.date > datetime.date.today())
+            if (len(reservations) == 0):
+                reserve = Reservation(date=datetime.date.today()+datetime.timedelta(1), patient="jad", personel="personel1")
+                db.session.add(reserve)
+                db.session.commit()
+                return jsonify(reservation_schema.dump(reserve)), 201
+            
         except jwt.ExpiredSignatureError:
             abort(403)
         except jwt.InvalidTokenError:

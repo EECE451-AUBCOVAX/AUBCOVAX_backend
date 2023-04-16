@@ -1,5 +1,5 @@
 from marshmallow import Schema
-from database import User
+from database import User, Reservation
 
 
 class UserSchema(Schema):
@@ -10,3 +10,11 @@ class UserSchema(Schema):
 
 user_schema=UserSchema()
 users_schema=UserSchema(many=True)
+
+class ReservationSchema(Schema):
+    class Meta:
+        fields = ("personel", "patient", "date", "time", "status")
+        model = Reservation
+
+reservation_schema=ReservationSchema()
+reservations_schema=ReservationSchema(many=True)
