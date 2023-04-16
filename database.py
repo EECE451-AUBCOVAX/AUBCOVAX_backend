@@ -47,5 +47,5 @@ class Reservation(db.Model):
     time = db.Column(db.Time)
     status = db.Column(db.String(30), default="pending")
 
-    def __init__(self, user_id, vaccine_id, date, time, status="pending"):
-        super(Reservation, self).__init__(user_id=user_id, vaccine_id=vaccine_id, date=date, time=time, status=status)
+    def __init__(self, Patient, Personel, date, time, status="pending"):
+        super(Reservation, self).__init__(patient=Patient, personel=Personel, date=date, time=time, status=status)

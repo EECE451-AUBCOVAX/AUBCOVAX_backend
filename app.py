@@ -108,6 +108,11 @@ def check_token():
 
     abort(403)
 
+@app.route("/reservations", methods=["GET"])
+def get_reservations():
+    reservations = Reservation.query.order_by(Reservation.date).order_by(Reservation.time).all()
+    return jsonify(reservations_schema.dump(reservations)), 200
+
 @app.route("/generate_personel", methods=["POST"])
 def generate_personel():
     randUser = ''.join(random.choices(string.ascii_lowercase, k=7))
@@ -118,11 +123,15 @@ def generate_personel():
     randPhone = ''.join(random.choices(string.digits, k=8))
     while(User.query.filter_by(phone_number=randPhone).first() is not None):
         randPhone = ''.join(random.choices(string.digits, k=8))
+
+    randId = ''.join(random.choices(string.digits, k=8))
+    while(User.query.filter_by(id_card=randId).first() is not None):
+        randId = ''.join(random.choices(string.digits, k=8))
     
     user=User(user_name=randUser,password=passw, first_name=randUser,
-              last_name=randUser, email=randUser+"@personel.com", phone_number="", 
+              last_name=randUser, email=randUser+"@personel.com", phone_number=randPhone, 
               city="Beirut", country="Lebanon", medical_conditions="None", 
-              date_of_birth=datetime.datetime.strptime("2000-01-01",'%Y-%m-%d').date(), id_card="00000000")
+              date_of_birth=datetime.datetime.strptime("2000-01-01",'%Y-%m-%d').date(), id_card=randId)
     user.role="personel"
     db.session.add(user)
     db.session.commit()
@@ -141,6 +150,7 @@ def get_users():
             abort(403)
         except jwt.InvalidTokenError:
             abort(403)
+    abort(403)
     
 @app.route("/generate_admin", methods=["POST"])
 def generate_admin():
@@ -169,6 +179,7 @@ def get_user_by_phone_number():
             abort(403)
         except jwt.InvalidTokenError:
             abort(403)
+    abort(403)
 
 
 @app.route("/user", methods=["GET"])
@@ -182,6 +193,7 @@ def get_user():
             abort(403)
         except jwt.InvalidTokenError:
             abort(403)
+    abort(403)
 
 @app.route("/user/personel", methods=["GET"])
 def get_user_personel():
@@ -197,6 +209,7 @@ def get_user_personel():
             abort(403)
         except jwt.InvalidTokenError:
             abort(403)
+    abort(403)
 
 def extract_auth_token(authenticated_request):
     auth_header = authenticated_request.headers.get('Authorization')
@@ -246,15 +259,48 @@ def get_user_reserve():
             user = User.query.get(user_id)
             if (user is None):
                 abort(403)
-            if (user.role != "patient"):
+            if (user.role != "user"):
                 abort(403)
-            numPersonel = len(User.query.filter_by(User.role=="personel"))
-            reservations = Reservation.query.filter_by(Reservation.date > datetime.date.today())
-            if (len(reservations) == 0):
-                reserve = Reservation(date=datetime.date.today()+datetime.timedelta(1), patient="jad", personel="personel1")
-                db.session.add(reserve)
-                db.session.commit()
-                return jsonify(reservation_schema.dump(reserve)), 201
+            personel = User.query.filter(User.role=="personel")
+            name= user.user_name
+            userReservations = Reservation.query.filter(Reservation.patient == name)
+            if (userReservations.count() == 0):
+                reservations = Reservation.query.filter(Reservation.date > datetime.date.today()).order_by(Reservation.date).order_by(Reservation.time)
+                if (reservations.count() == 0):
+                    reserve = Reservation(date=datetime.date.today()+datetime.timedelta(1), Patient=name, Personel=personel[0].user_name, time=datetime.time(8,00))
+                    db.session.add(reserve)
+                    db.session.commit()
+                    return jsonify(reservation_schema.dump(reserve)), 201
+                else:
+                    numPersonel = personel.count()
+                    date = datetime.date.today()+datetime.timedelta(1)
+                    time = datetime.time(8,00)
+                    numReservationsperday = 20*numPersonel
+                    r=numReservationsperday-1
+                    while (reservations.count()>r and reservations[r].date == date):
+                        r+=numReservationsperday
+                        date=date+datetime.timedelta(1)
+                    slot=r-numReservationsperday+1
+                    numReservationsperslot = numPersonel
+                    slot+=numReservationsperslot-1
+                    while (reservations.count()>slot and reservations[slot].time == time):
+                        slot+=numReservationsperslot
+                        time=(datetime.datetime.combine(date, time)+datetime.timedelta(minutes=30)).time()
+                    reservationAtSlot = Reservation.query.filter(Reservation.date == date).filter(Reservation.time == time)
+                    personelNames = []
+                    for p in personel:
+                        personelNames.append(p.user_name)
+                    for reserv in reservationAtSlot:
+                        personelNames.remove(reserv.personel)
+                    reservation=Reservation(date=date, Patient=name, Personel=personelNames[0], time=time)
+                    db.session.add(reservation)
+                    db.session.commit()
+                    return jsonify(reservation_schema.dump(reservation)), 201
+            else:
+                return jsonify("User already has taken his first dose"), 400
+
+
+
             
         except jwt.ExpiredSignatureError:
             abort(403)
