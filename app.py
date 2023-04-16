@@ -9,6 +9,11 @@ import os
 from database import  bcrypt, db, User
 from schemas import  user_schema, users_schema
 
+import random
+import string
+
+
+
 app = Flask(__name__)
 
 load_dotenv()
@@ -103,6 +108,22 @@ def check_token():
 
     abort(403)
 
+@app.route("/generate_personel", methods=["POST"])
+def generate_personel():
+    randUser = ''.join(random.choices(string.ascii_lowercase, k=7))
+    passw = "1234"
+    while(User.query.filter_by(user_name=randUser).first() is not None):
+        randUser = ''.join(random.choices(string.ascii_lowercase, k=7))
+    
+    randPhone = ''.join(random.choices(string.digits, k=8))
+    while(User.query.filter_by(phone_number=randPhone).first() is not None):
+        randPhone = ''.join(random.choices(string.digits, k=8))
+    
+    u=User(user_name=randUser,password=passw, first_name=randUser,
+              last_name=randUser, email=randUser+"@personel.com", phone_number="", 
+              city="Beirut", country="Lebanon", medical_conditions="None", 
+              date_of_birth=datetime.datetime.strptime("2000-01-01",'%Y-%m-%d').date(), id_card="00000000")
+
 @app.route("/users", methods=["GET"])
 def get_users():
     if (extract_auth_token(request) is not None):
@@ -145,6 +166,33 @@ def get_user_by_phone_number():
         except jwt.InvalidTokenError:
             abort(403)
 
+
+@app.route("/user", methods=["GET"])
+def get_user():
+    if (extract_auth_token(request) is not None):
+        try:
+            user_id = decode_token(extract_auth_token(request))
+            user = User.query.get(user_id)
+            return jsonify(user_schema.dump(user)), 200
+        except jwt.ExpiredSignatureError:
+            abort(403)
+        except jwt.InvalidTokenError:
+            abort(403)
+
+@app.route("/user/personel", methods=["GET"])
+def get_user_personel():
+    if (extract_auth_token(request) is not None):
+        try:
+            user_id = decode_token(extract_auth_token(request))
+            user = User.query.get(user_id)
+            if (user.role != "admin"):
+                abort(403)
+            personel = User.query.filter(User.role == "personel")
+            return jsonify(users_schema.dump(personel)), 200
+        except jwt.ExpiredSignatureError:
+            abort(403)
+        except jwt.InvalidTokenError:
+            abort(403)
 
 def extract_auth_token(authenticated_request):
     auth_header = authenticated_request.headers.get('Authorization')
