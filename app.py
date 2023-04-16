@@ -230,12 +230,13 @@ def get_user_patient():
             user = User.query.get(user_id)
             if (user.role != "admin" and user.role!="personel"):
                 abort(403)
-            personel = User.query.filter(User.role == "user")
-            return jsonify(users_schema.dump(user)), 200
+            users = User.query.filter(User.role == "user")
+            return jsonify(users_schema.dump(users)), 200
         except jwt.ExpiredSignatureError:
             abort(403)
         except jwt.InvalidTokenError:
             abort(403)
+    abort(403)
 
 def extract_auth_token(authenticated_request):
     auth_header = authenticated_request.headers.get('Authorization')
