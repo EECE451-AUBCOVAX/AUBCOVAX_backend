@@ -222,6 +222,44 @@ def create_token(user_id):
     algorithm='HS256'
     )
 
+@app.route("/user/patient", methods=["GET"])
+def get_user_patient():
+    if (extract_auth_token(request) is not None):
+        try:
+            user_id = decode_token(extract_auth_token(request))
+            user = User.query.get(user_id)
+            if (user.role != "admin" and user.role!="personel"):
+                abort(403)
+            personel = User.query.filter(User.role == "user")
+            return jsonify(users_schema.dump(user)), 200
+        except jwt.ExpiredSignatureError:
+            abort(403)
+        except jwt.InvalidTokenError:
+            abort(403)
+
+def extract_auth_token(authenticated_request):
+    auth_header = authenticated_request.headers.get('Authorization')
+    if auth_header:
+        print("passed")
+        return auth_header.split(" ")[1]
+    else:
+        return None
+
+def decode_token(token):
+    payload = jwt.decode(token, SECRET_KEY, 'HS256')
+    return payload['sub']
+
+def create_token(user_id):
+    payload = {
+    'exp': datetime.datetime.utcnow() + datetime.timedelta(days=4),
+    'iat': datetime.datetime.utcnow(),
+    'sub': user_id
+    }
+    return jwt.encode(
+    payload,
+    SECRET_KEY,
+    algorithm='HS256'
+    )
 
 CORS(app)
 
