@@ -123,6 +123,10 @@ def generate_personel():
               last_name=randUser, email=randUser+"@personel.com", phone_number="", 
               city="Beirut", country="Lebanon", medical_conditions="None", 
               date_of_birth=datetime.datetime.strptime("2000-01-01",'%Y-%m-%d').date(), id_card="00000000")
+    
+    db.session.add(u)
+    db.session.commit()
+    return jsonify(user_schema.dump(u)), 201
 
 @app.route("/users", methods=["GET"])
 def get_users():
@@ -159,7 +163,7 @@ def get_user_by_phone_number():
             user_id = decode_token(extract_auth_token(request))
             if (User.query.get(user_id).role == "user"):
                 abort(403)
-            user = User.query.filter_by(phone_number=phone_number).first()
+            user = User.query.filter_by(phone_number=phone_number).filter(User.role == "user").first()
             return jsonify(user_schema.dump(user)), 200
         except jwt.ExpiredSignatureError:
             abort(403)
