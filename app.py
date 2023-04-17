@@ -374,6 +374,36 @@ def create_token(user_id):
     algorithm='HS256'
     )
 
+@app.route("/personel/reservation", methods=["GET"])
+def get_user_history():
+    if (extract_auth_token(request) is not None):
+        try:
+            user_id = decode_token(extract_auth_token(request))
+            user = User.query.get(user_id)
+            if (user.role!="personel"):
+                abort(403)
+            reservations = Reservation.query.filter(Reservation.personel == user.user_name).filter(Reservation.date>=datetime.datetime.today()).order_by(Reservation.date).order_by(Reservation.time)
+            if (reservations.count() == 0):
+                return jsonify("No reservations found"), 400
+            if (reservations.count() == 1):
+                return jsonify(reservation_schema.dump(reservations)), 200
+            return jsonify(reservations_schema.dump(reservations)), 200
+        except jwt.ExpiredSignatureError:
+            abort(403)
+        except jwt.InvalidTokenError:
+            abort(403)
+
+def decode_token(token):
+    payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+    return payload['sub']
+
+def extract_auth_token(authenticated_request):
+    auth_header = authenticated_request.headers.get('Authorization')
+    if auth_header:
+        return auth_header.split(" ")[1]
+    else:
+        return None
+
 CORS(app)
 
 if __name__ == '__main__':
