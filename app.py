@@ -433,8 +433,6 @@ def get_personel_history():
             reservations = Reservation.query.filter(Reservation.personel == user.user_name).filter(Reservation.date>=datetime.datetime.today()).order_by(Reservation.date).order_by(Reservation.time)
             if (reservations.count() == 0):
                 return jsonify("No reservations found"), 400
-            if (reservations.count() == 1):
-                return jsonify(reservation_schema.dump(reservations)), 200
             return jsonify(reservations_schema.dump(reservations)), 200
         except jwt.ExpiredSignatureError:
             abort(403)
@@ -455,8 +453,6 @@ def get_user_history():
             reservations = Reservation.query.filter(Reservation.patient == user.user_name).order_by(Reservation.date).order_by(Reservation.time)
             if (reservations.count() == 0):
                 return jsonify("No reservations found"), 400
-            if (reservations.count() == 1):
-                return jsonify(reservation_schema.dump(reservations)), 200
             return jsonify(reservations_schema.dump(reservations)), 200
         except jwt.ExpiredSignatureError:
             abort(403)
@@ -478,8 +474,6 @@ def get_patient_reservation():
             reservations = Reservation.query.filter(Reservation.patient == patient).order_by(Reservation.date).order_by(Reservation.time)
             if (reservations.count() == 0):
                 return jsonify("No reservations found"), 400
-            if (reservations.count() == 1):
-                return jsonify(reservation_schema.dump(reservations)), 200
             return jsonify(reservations_schema.dump(reservations)), 200
         except jwt.ExpiredSignatureError:
             abort(403)
