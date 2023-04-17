@@ -160,7 +160,10 @@ def get_users():
     if (extract_auth_token(request) is not None):
         try:
             user_id = decode_token(extract_auth_token(request))
-            if (User.query.get(user_id).role != "admin"):
+            user=User.query.get(user_id)
+            if (user is None):
+                abort(403)
+            if (user.role != "admin"):
                 abort(403)
             users = User.query.filter(User.role != "admin")
             return jsonify(users_schema.dump(users)), 200
@@ -189,7 +192,10 @@ def get_user_by_phone_number():
     if (extract_auth_token(request) is not None):
         try:
             user_id = decode_token(extract_auth_token(request))
-            if (User.query.get(user_id).role == "user"):
+            user=User.query.get(user_id)
+            if (user is None):
+                abort(404)
+            if ( user.role== "user"):
                 abort(403)
             user = User.query.filter_by(phone_number=phone_number).filter(User.role == "user").first()
             return jsonify(light_user_schema.dump(user)), 200
@@ -206,6 +212,8 @@ def get_user():
         try:
             user_id = decode_token(extract_auth_token(request))
             user = User.query.get(user_id)
+            if (user is None):
+                abort(404)
             return jsonify(user_schema.dump(user)), 200
         except jwt.ExpiredSignatureError:
             abort(403)
@@ -219,6 +227,8 @@ def get_user_personel():
         try:
             user_id = decode_token(extract_auth_token(request))
             user = User.query.get(user_id)
+            if (user is None):
+                abort(403)
             if (user.role != "admin"):
                 abort(403)
             personel = User.query.filter(User.role == "personel")
@@ -263,6 +273,8 @@ def get_user_patient():
         try:
             user_id = decode_token(extract_auth_token(request))
             user = User.query.get(user_id)
+            if (user is None):
+                abort(403)
             if (user.role != "admin" and user.role!="personel"):
                 abort(403)
             users = User.query.filter(User.role == "user")
@@ -341,7 +353,7 @@ def get_personel_reserve():
             patient = request.json['patient']
             userReservations = Reservation.query.filter(Reservation.patient == patient)
             if (userReservations.count() != 1):
-                return jsonify("Patient has not taken his first dose yet"), 400
+                return jsonify("Patient has not taken his first dose yet, or has taken his second dose"), 400
             user = User.query.filter(User.user_name == patient).first()
             personelReservation = Reservation.query.filter(Reservation.personel == personel.user_name).filter(Reservation.date>datetime.datetime.today()).order_by(Reservation.date).order_by(Reservation.time)
             if (personelReservation.count() == 0):
@@ -414,6 +426,8 @@ def get_personel_history():
         try:
             user_id = decode_token(extract_auth_token(request))
             user = User.query.get(user_id)
+            if (user is None):
+                abort(403)
             if (user.role!="personel"):
                 abort(403)
             reservations = Reservation.query.filter(Reservation.personel == user.user_name).filter(Reservation.date>=datetime.datetime.today()).order_by(Reservation.date).order_by(Reservation.time)
@@ -434,6 +448,8 @@ def get_user_history():
         try:
             user_id = decode_token(extract_auth_token(request))
             user = User.query.get(user_id)
+            if (user is None):
+                abort(403)
             if (user.role!="user"):
                 abort(403)
             reservations = Reservation.query.filter(Reservation.patient == user.user_name).order_by(Reservation.date).order_by(Reservation.time)
@@ -454,6 +470,8 @@ def get_patient_reservation():
         try:
             user_id = decode_token(extract_auth_token(request))
             user = User.query.get(user_id)
+            if (user is None):
+                abort(403)
             if (user.role!="personel"):
                 abort(403)
             patient = request.args.get("user")
