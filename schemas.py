@@ -18,3 +18,11 @@ class ReservationSchema(Schema):
 
 reservation_schema=ReservationSchema()
 reservations_schema=ReservationSchema(many=True)
+
+class LimitedReservationSchema(Schema):
+    class Meta:
+        fields = ("personel","patient","data","status")
+        model = Reservation
+
+limited_reservation_schema=LimitedReservationSchema()
+limited_reservations_schema=LimitedReservationSchema(many=True)
