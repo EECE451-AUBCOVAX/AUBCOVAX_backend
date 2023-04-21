@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from flask import abort
 import jwt
@@ -14,14 +14,19 @@ import string
 import smtplib
 from email.message import EmailMessage
 from email.mime.multipart import MIMEMultipart
-
+from io import BytesIO
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from PyPDF2 import PdfWriter, PdfReader
+from PyPDF2.generic import AnnotationBuilder
 
 # Set up the email message
 
 smtp_username = "noreply.covaxaub@gmail.com"
 subject = "Vaccination appointment"
 
-
+time_format='%H:%M'
+date_format='%Y-%m-%d'
 
 
 
@@ -91,7 +96,7 @@ def Create_User():
     u=User(user_name=request.json["user_name"],password=request.json["password"], first_name=request.json["first_name"], 
            last_name=request.json["last_name"], email=request.json["email"], phone_number=request.json["phone_number"], 
            city=request.json["city"], country=request.json["country"], medical_conditions=request.json["medical_conditions"], 
-           date_of_birth=datetime.datetime.strptime(request.json["date_of_birth"],'%Y-%m-%d').date(), id_card=request.json["id_card"])
+           date_of_birth=datetime.datetime.strptime(request.json["date_of_birth"],date_format).date(), id_card=request.json["id_card"])
     db.session.add(u)
     db.session.commit()
     return jsonify(user_schema.dump(u)), 201
@@ -149,7 +154,7 @@ def generate_personel():
     user=User(user_name=randUser,password=passw, first_name=randUser,
               last_name=randUser, email=randUser+"@personel.com", phone_number=randPhone, 
               city="Beirut", country="Lebanon", medical_conditions="None", 
-              date_of_birth=datetime.datetime.strptime("2000-01-01",'%Y-%m-%d').date(), id_card=randId)
+              date_of_birth=datetime.datetime.strptime("2000-01-01",date_format).date(), id_card=randId)
     user.role="personel"
     db.session.add(user)
     db.session.commit()
@@ -299,16 +304,16 @@ def get_user_reserve():
             name= user.user_name
             userReservations = Reservation.query.filter(Reservation.patient == name)
             if (userReservations.count() == 0):
-                reservations = Reservation.query.filter(Reservation.date > datetime.date.today()).order_by(Reservation.date).order_by(Reservation.time)
+                reservations = Reservation.query.filter(Reservation.date > datetime.date.today()+ datetime.timedelta(13)).order_by(Reservation.date).order_by(Reservation.time)
                 if (reservations.count() == 0):
-                    reserve = Reservation(date=datetime.date.today()+datetime.timedelta(1), Patient=name, Personel=personel[0].user_name, time=datetime.time(8,00))
+                    reserve = Reservation(date=datetime.date.today()+datetime.timedelta(14), Patient=name, Personel=personel[0].user_name, time=datetime.time(8,00))
                     db.session.add(reserve)
                     db.session.commit()
                     send_email(user.email, "Your first dose reservation is confirmed. \nPlease show up on the "+str(reserve.date)+" at "+str(reserve.time))
                     return jsonify(reservation_schema.dump(reserve)), 201
                 else:
                     numPersonel = personel.count()
-                    date = datetime.date.today()+datetime.timedelta(1)
+                    date = datetime.date.today()+datetime.timedelta(14)
                     time = datetime.time(8,00)
                     numReservationsperday = 20*numPersonel
                     r=numReservationsperday-1
@@ -350,11 +355,37 @@ def get_personel_reserve():
                 abort(403)
             if (personel.role != "personel"):
                 abort(403)
+            if (request.json is None or request.json.get('patient') is None or request.json.get('date') is None 
+                or request.json.get('time') is None):
+                return jsonify("Missing arguments"), 400
             patient = request.json['patient']
             userReservations = Reservation.query.filter(Reservation.patient == patient)
             if (userReservations.count() != 1):
                 return jsonify("Patient has not taken his first dose yet, or has taken his second dose"), 400
             user = User.query.filter(User.user_name == patient).first()
+            if (user is None):
+                abort(403)
+
+            date=request.json.get('date')
+            time=request.json.get('time')
+            Date = datetime.datetime.strptime(date, date_format).date()
+            Time = datetime.datetime.strptime(time, time_format).time()
+            if (Date < datetime.date.today()+ datetime.timedelta(14)):
+                return jsonify("Date is not valid (too early, needs to be at least 2 weeks away)"), 400
+            if (Time < datetime.time(8,00) or Time > datetime.time(17,30)):
+                return jsonify("Time is not valid (needs to be between 8:00 and 17:30)"), 400
+            if (Time.minute != 0 and Time.minute != 30):
+                return jsonify("Time is not valid (needs to be on the hour or on the half hour)"), 400
+            personelReservation = Reservation.query.filter(Reservation.personel == personel.user_name).filter(Reservation.date == Date).filter(Reservation.time == Time)
+            if (personelReservation.count() != 0):
+                return jsonify("Personel already has a reservation at this time"), 400
+            reservation = Reservation(date=Date, Patient=patient, Personel=personel.user_name, time=Time)
+            db.session.add(reservation)
+            db.session.commit()
+            send_email(user.email, "Your second dose reservation is confirmed. \nPlease show up on the "+str(Date)+" at "+str(Time))
+            return jsonify(reservation_schema.dump(reservation)), 201
+
+            '''
             personelReservation = Reservation.query.filter(Reservation.personel == personel.user_name).filter(Reservation.date>datetime.datetime.today()).order_by(Reservation.date).order_by(Reservation.time)
             if (personelReservation.count() == 0):
                 reservation = Reservation(date=datetime.date.today()+datetime.timedelta(1), Patient=patient, Personel=personel.user_name, time=datetime.time(8,00))
@@ -378,12 +409,96 @@ def get_personel_reserve():
                 db.session.commit()
                 send_email(user.email, "Your second dose reservation is due. \nPlease show up on the "+str(date)+" at "+str(time)+ f" to take your second dose with {personel.user_name}")
                 return jsonify(reservation_schema.dump(reservation)), 201
+                '''
         except jwt.ExpiredSignatureError:
             abort(403)
         except jwt.InvalidTokenError:
             abort(403)
 
     abort(403)
+
+@app.route("/personel/dose_confirm", methods=["POST"])
+def get_personel_dose_confirm():
+    if (extract_auth_token(request) is not None):
+        try:
+            personel_id = decode_token(extract_auth_token(request))
+            personel = User.query.get(personel_id)
+            if (personel is None):
+                abort(403)
+            if (personel.role != "personel"):
+                abort(403)
+            if (request.json is None or request.json.get('patient') is None or request.json.get('date') is None 
+                or request.json.get('time') is None):
+                return jsonify("Missing arguments"), 400
+            patient = request.json['patient']
+            date=request.json.get('date')
+            time=request.json.get('time')
+            Date = datetime.datetime.strptime(date, date_format).date()
+            Time = datetime.datetime.strptime(time, time_format).time()
+            reservation = Reservation.query.filter(Reservation.patient == patient).filter(Reservation.date == Date).filter(Reservation.time == Time).first()
+            if (reservation is None):
+                return jsonify("No reservation found"), 404
+            #update reservation status
+            reservation.status = "confirmed"
+            db.session.commit()
+            return jsonify(reservation_schema.dump(reservation)), 200
+            
+        except:
+            abort(403)
+
+@app.route("/user/certificate", methods=["GET"])
+def get_certificate():
+    if (extract_auth_token(request) is not None):
+        try:
+            user_id = decode_token(extract_auth_token(request))
+            user = User.query.get(user_id)
+            if (user is None):
+                return jsonify("User not found"), 404
+            if (user.role != "user"):
+                return jsonify("User is not a patient"), 400
+            userReservations = Reservation.query.filter(Reservation.patient == user.user_name).filter(Reservation.status == "confirmed")
+            if (userReservations.count() != 2):
+                return jsonify("Patient has not taken his second dose yet, doses taken: " + userReservations.count()), 400
+            
+            with open('certificate.pdf', 'rb') as file:
+                
+                pdf_reader = PdfReader(file)
+                
+
+                # Create a new PDF writer
+                pdf_writer = PdfWriter()
+
+                # Loop through each page of the existing PDF
+                for page_num in range(len(pdf_reader.pages)):
+                    page = pdf_reader.pages[page_num]
+
+                    # Add the patient name to the page
+                    
+
+                    # Append the content stream to the page's contents
+                    
+                    
+                    pdf_writer.add_page(page)
+
+                    
+                    
+
+                # Convert the modified PDF to binary
+                
+                output_stream = BytesIO()
+                pdf_writer.write(output_stream)
+                pdf_bytes = output_stream.getvalue()
+
+                # Send the modified PDF as a response
+                return send_file(BytesIO(pdf_bytes), download_name='certificate.pdf', as_attachment=True)
+            
+            
+            
+        except jwt.ExpiredSignatureError:
+            abort(403)
+        except jwt.InvalidTokenError:
+            abort(403)
+        
 
 def extract_auth_token(authenticated_request):
     auth_header = authenticated_request.headers.get('Authorization')
