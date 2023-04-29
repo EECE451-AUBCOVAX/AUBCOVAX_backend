@@ -19,6 +19,11 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from PyPDF2 import PdfWriter, PdfReader
 from PyPDF2.generic import AnnotationBuilder
+from smtplib import SMTPRecipientsRefused
+from validate_email_address import validate_email
+import subprocess
+from io import StringIO
+from time import sleep
 
 # Set up the email message
 
@@ -28,9 +33,7 @@ subject = "Vaccination appointment"
 time_format='%H:%M'
 date_format='%Y-%m-%d'
 
-
-
-
+CERTIFICATE_TEMPLATE="\\documentclass{article}\\usepackage{graphicx}\\begin{document}\\pagestyle{empty}\\begin{figure}[h!]  \\centering  \\includegraphics[width=1\\textwidth,height=0.4\\textheight]{./AUBCMC.png}  \\label{fig:example}\\end{figure}\\begin{center}  {\\huge\\bfseries\\mbox{COVID-19 Vaccination Certificate}} \\\\[40pt]\\begin{tabular}{ll}    \\fontsize{15}{14}\\selectfont Name: &\\fontsize{15}{14}\\selectfont %s\\\\[15pt]\\fontsize{15}{14}\\selectfont Date of birth: &\\fontsize{15}{14}\\selectfont %s\\\\[15pt]\\fontsize{15}{14}\\selectfont 1st vaccine: &\\fontsize{15}{14}\\selectfont %s\\\\[15pt]\\fontsize{15}{14}\\selectfont 2nd vaccine: &\\fontsize{15}{14}\\selectfont %s\\\\[15pt]\\end{tabular}\\end{center}\\end{document}"
 
 app = Flask(__name__)
 
@@ -44,10 +47,13 @@ bcrypt.init_app(app)
 SECRET_KEY = "b'|\xe7\xbfU3`\xc4\xec\xa7\xa9zf:}\xb5\xc7\xb9\x139^3@Dv'"
 def send_email(to_address, body):
     msg = f"Subject: {subject}\n\n{body}"
-    with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
-        smtp.starttls()
-        smtp.login(smtp_username, os.getenv("mailpassword"))
-        smtp.sendmail(smtp_username, to_address, msg)
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+            smtp.starttls()
+            smtp.login(smtp_username, os.getenv("mailpassword"))
+            smtp.sendmail(smtp_username, to_address, msg)
+    except SMTPRecipientsRefused:
+        return False
 
 @app.route('/', methods=['GET'])
 def hello_world():
@@ -78,6 +84,8 @@ def Create_User():
     check_field(request, "date_of_birth", 30)
     check_field(request, "id_card", -1)
     
+    if (not validate_email(request.json["email"])):
+        return jsonify([f"Failed to create resource (invalid email: {request.json['email']})"]), 400
     # Check if the user already exists
     user = User.query.filter_by(user_name=request.json["user_name"]).first()
     if user:
@@ -359,9 +367,14 @@ def get_personel_reserve():
                 or request.json.get('time') is None):
                 return jsonify("Missing arguments"), 400
             patient = request.json['patient']
+            confirmedReservations = Reservation.query.filter(Reservation.patient == patient).filter(Reservation.status=="confirmed")
             userReservations = Reservation.query.filter(Reservation.patient == patient)
-            if (userReservations.count() != 1):
+            if (userReservations.count() == 0 or confirmedReservations.count() == 0):
                 return jsonify("Patient has not taken his first dose yet, or has taken his second dose"), 400
+            if (confirmedReservations.count() > 1):
+                return jsonify("Patient has already taken his second dose"), 400
+            if (userReservations.count() > 1):
+                return jsonify("Patient already has an appointment for his second dose"), 400
             user = User.query.filter(User.user_name == patient).first()
             if (user is None):
                 abort(403)
@@ -384,32 +397,6 @@ def get_personel_reserve():
             db.session.commit()
             send_email(user.email, "Your second dose reservation is confirmed. \nPlease show up on the "+str(Date)+" at "+str(Time))
             return jsonify(reservation_schema.dump(reservation)), 201
-
-            '''
-            personelReservation = Reservation.query.filter(Reservation.personel == personel.user_name).filter(Reservation.date>datetime.datetime.today()).order_by(Reservation.date).order_by(Reservation.time)
-            if (personelReservation.count() == 0):
-                reservation = Reservation(date=datetime.date.today()+datetime.timedelta(1), Patient=patient, Personel=personel.user_name, time=datetime.time(8,00))
-                db.session.add(reservation)
-                db.session.commit()
-                send_email(user.email, "Your second dose reservation is due. \nPlease show up on the "+str(date)+" at "+str(time)+ f" to take your second dose with {personel.user_name}")
-                return jsonify(reservation_schema.dump(reservation)), 201
-            else:
-                time = personelReservation[personelReservation.count()-1].time
-                date = personelReservation[personelReservation.count()-1].date
-                if (time == datetime.time(17,30)):
-                    date = personelReservation[personelReservation.count()-1].date+datetime.timedelta(1)
-                    time = datetime.time(8,00)
-                else:
-                    time=(datetime.datetime.combine(personelReservation[personelReservation.count()-1].date,
-                                                time)+datetime.timedelta(minutes=30)).time()
-
-                    date = personelReservation[personelReservation.count()-1].date
-                reservation = Reservation(date=date, Patient=patient, Personel=personel.user_name, time=time)
-                db.session.add(reservation)
-                db.session.commit()
-                send_email(user.email, "Your second dose reservation is due. \nPlease show up on the "+str(date)+" at "+str(time)+ f" to take your second dose with {personel.user_name}")
-                return jsonify(reservation_schema.dump(reservation)), 201
-                '''
         except jwt.ExpiredSignatureError:
             abort(403)
         except jwt.InvalidTokenError:
@@ -456,41 +443,31 @@ def get_certificate():
                 return jsonify("User not found"), 404
             if (user.role != "user"):
                 return jsonify("User is not a patient"), 400
-            userReservations = Reservation.query.filter(Reservation.patient == user.user_name).filter(Reservation.status == "confirmed")
+            userReservations = Reservation.query.filter(Reservation.patient == user.user_name).filter(Reservation.status == "confirmed").order_by(Reservation.date).order_by(Reservation.time)
             if (userReservations.count() != 2):
                 return jsonify("Patient has not taken his second dose yet, doses taken: " + userReservations.count()), 400
             
-            with open('certificate.pdf', 'rb') as file:
-                
-                pdf_reader = PdfReader(file)
-                
-
-                # Create a new PDF writer
-                pdf_writer = PdfWriter()
-
-                # Loop through each page of the existing PDF
-                for page_num in range(len(pdf_reader.pages)):
-                    page = pdf_reader.pages[page_num]
-
-                    # Add the patient name to the page
-                    
-
-                    # Append the content stream to the page's contents
-                    
-                    
-                    pdf_writer.add_page(page)
-
-                    
-                    
-
-                # Convert the modified PDF to binary
-                
-                output_stream = BytesIO()
-                pdf_writer.write(output_stream)
-                pdf_bytes = output_stream.getvalue()
-
-                # Send the modified PDF as a response
-                return send_file(BytesIO(pdf_bytes), download_name='certificate.pdf', as_attachment=True)
+            latex_doc = CERTIFICATE_TEMPLATE % (user.first_name+" "+user.last_name, user.date_of_birth,userReservations[0].date, userReservations[1].date)
+            #print(latex_doc)
+            latex_input = StringIO(latex_doc)
+            # Call pdflatex with input from the StringIO object and capture the output
+            #print(subprocess.run(['echo', latex_input.getvalue().encode()], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout)
+            proc = subprocess.run(['pdflatex', '-jobname', "output", '-interaction', 'nonstopmode'], input=latex_input.getvalue().encode(), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if os.path.exists(user.user_name+'.pdf'):
+                os.remove(user.user_name+'.pdf')
+            os.rename("output.pdf", user.user_name+'.pdf')
+            #print(proc.stdout.decode())
+            with open(user.user_name+'.pdf', 'rb') as file:
+                pdf_output = file.read()
+                pdf_bytes = BytesIO(pdf_output)
+                file.close()
+                try:
+                    os.remove("output"+".aux")
+                    os.remove("output"+".log")
+                    os.remove(user.user_name+".pdf")
+                except:
+                    pass
+                return send_file(pdf_bytes, download_name='certificate.pdf', as_attachment=True)
             
             
             
@@ -588,7 +565,7 @@ def get_patient_reservation():
             patient = request.args.get("user")
             reservations = Reservation.query.filter(Reservation.patient == patient).order_by(Reservation.date).order_by(Reservation.time)
             if (reservations.count() == 0):
-                return jsonify("No reservations found"), 400
+                return jsonify("No reservations found"), 404
             return jsonify(reservations_schema.dump(reservations)), 200
         except jwt.ExpiredSignatureError:
             abort(403)
