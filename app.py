@@ -61,13 +61,13 @@ def hello_world():
 
 def check_field(request, field, max_length):
     if (request.json.get(field) is None):
-        return jsonify([f"Missing header {field}"]), 400
+        return jsonify({"message":f"Missing header {field}"}), 400
     if (request.json[field]=="" or request.json[field]==None):
-        return jsonify([f"Failed to create resource ({field} should not be empty header)"]), 400
+        return jsonify({"message":f"Failed to create resource ({field} should not be empty header)"}), 400
     if (max_length != -1 and len(request.json[field])>max_length):
-        return jsonify([f"Failed to create resource ({field} length too long)"]), 400
+        return jsonify({"message":f"Failed to create resource ({field} length too long)"}), 400
     if (type(request.json[field]) == str and request.json[field].isalnum()==False):
-        return jsonify([f"Failed to create resource ({field} name must be alphanumeric)"]), 400
+        return jsonify({"message":f"Failed to create resource ({field} name must be alphanumeric)"}), 400
 
 @app.route('/user', methods=['POST'])
 def Create_User():
@@ -85,20 +85,20 @@ def Create_User():
     check_field(request, "id_card", -1)
     
     if (not validate_email(request.json["email"])):
-        return jsonify([f"Failed to create resource (invalid email: {request.json['email']})"]), 400
+        return jsonify({"message": f"Failed to create resource (invalid email: {request.json['email']})"}), 400
     # Check if the user already exists
     user = User.query.filter_by(user_name=request.json["user_name"]).first()
     if user:
-        return jsonify([f"Failed to create resource (username {user.user_name} already exists)"]), 409
+        return jsonify({"message":f"Failed to create resource (username {user.user_name} already exists)"}), 409
     user = User.query.filter_by(email=request.json["email"]).first()
     if user:
-        return jsonify([f"Failed to create resource (email {user.email} already exists)"]), 409
+        return jsonify({"message":f"Failed to create resource (email {user.email} already exists)"}), 409
     user = User.query.filter_by(phone_number=request.json["phone_number"]).first()
     if user:
-        return jsonify([f"Failed to create resource (phone number {user.phone_number} already exists)"]), 409
+        return jsonify({"message":f"Failed to create resource (phone number {user.phone_number} already exists)"}), 409
     user = User.query.filter_by(id_card=request.json["id_card"]).first()
     if user:
-        return jsonify([f"Failed to create resource (id_card {user.id_card} already exists)"]), 409
+        return jsonify({"message":f"Failed to create resource (id_card {user.id_card} already exists)"}), 409
 
 
     u=User(user_name=request.json["user_name"],password=request.json["password"], first_name=request.json["first_name"], 
@@ -346,7 +346,7 @@ def get_user_reserve():
                     send_email(user.email, "Your first dose reservation is confirmed. \nPlease show up on the "+str(date)+" at "+str(time))
                     return jsonify(reservation_schema.dump(reservation)), 201
             else:
-                return jsonify("User already has taken his first dose"), 400
+                return jsonify({"message":"User already has taken his first dose"}), 400
         except jwt.ExpiredSignatureError:
             abort(403)
         except jwt.InvalidTokenError:
@@ -365,16 +365,16 @@ def get_personel_reserve():
                 abort(403)
             if (request.json is None or request.json.get('patient') is None or request.json.get('date') is None 
                 or request.json.get('time') is None):
-                return jsonify("Missing arguments"), 400
+                return jsonify({"message":"Missing arguments"}), 400
             patient = request.json['patient']
             confirmedReservations = Reservation.query.filter(Reservation.patient == patient).filter(Reservation.status=="confirmed")
             userReservations = Reservation.query.filter(Reservation.patient == patient)
             if (userReservations.count() == 0 or confirmedReservations.count() == 0):
-                return jsonify("Patient has not taken his first dose yet, or has taken his second dose"), 400
+                return jsonify({"message":"Patient has not taken his first dose yet, or has taken his second dose"}), 400
             if (confirmedReservations.count() > 1):
-                return jsonify("Patient has already taken his second dose"), 400
+                return jsonify({"message":"Patient has already taken his second dose"}), 400
             if (userReservations.count() > 1):
-                return jsonify("Patient already has an appointment for his second dose"), 400
+                return jsonify({"message":"Patient already has an appointment for his second dose"}), 400
             user = User.query.filter(User.user_name == patient).first()
             if (user is None):
                 abort(403)
@@ -384,14 +384,14 @@ def get_personel_reserve():
             Date = datetime.datetime.strptime(date, date_format).date()
             Time = datetime.datetime.strptime(time, time_format).time()
             if (Date < datetime.date.today()+ datetime.timedelta(14)):
-                return jsonify("Date is not valid (too early, needs to be at least 2 weeks away)"), 400
+                return jsonify({"message":"Date is not valid (too early, needs to be at least 2 weeks away)"}), 400
             if (Time < datetime.time(8,00) or Time > datetime.time(17,30)):
-                return jsonify("Time is not valid (needs to be between 8:00 and 17:30)"), 400
+                return jsonify({"message":"Time is not valid (needs to be between 8:00 and 17:30)"}), 400
             if (Time.minute != 0 and Time.minute != 30):
-                return jsonify("Time is not valid (needs to be on the hour or on the half hour)"), 400
+                return jsonify({"message":"Time is not valid (needs to be on the hour or on the half hour)"}), 400
             personelReservation = Reservation.query.filter(Reservation.personel == personel.user_name).filter(Reservation.date == Date).filter(Reservation.time == Time)
             if (personelReservation.count() != 0):
-                return jsonify("Personel already has a reservation at this time"), 400
+                return jsonify({"message":"Personel already has a reservation at this time"}), 400
             reservation = Reservation(date=Date, Patient=patient, Personel=personel.user_name, time=Time)
             db.session.add(reservation)
             db.session.commit()
@@ -416,7 +416,7 @@ def get_personel_dose_confirm():
                 abort(403)
             if (request.json is None or request.json.get('patient') is None or request.json.get('date') is None 
                 or request.json.get('time') is None):
-                return jsonify("Missing arguments"), 400
+                return jsonify({"message":"Missing arguments"}), 400
             patient = request.json['patient']
             date=request.json.get('date')
             time=request.json.get('time')
@@ -424,7 +424,7 @@ def get_personel_dose_confirm():
             Time = datetime.datetime.strptime(time, time_format).time()
             reservation = Reservation.query.filter(Reservation.patient == patient).filter(Reservation.date == Date).filter(Reservation.time == Time).first()
             if (reservation is None):
-                return jsonify("No reservation found"), 404
+                return jsonify({"message":"No reservation found"}), 404
             #update reservation status
             reservation.status = "confirmed"
             db.session.commit()
@@ -440,12 +440,12 @@ def get_certificate():
             user_id = decode_token(extract_auth_token(request))
             user = User.query.get(user_id)
             if (user is None):
-                return jsonify("User not found"), 404
+                return jsonify({"message":"User not found"}), 404
             if (user.role != "user"):
-                return jsonify("User is not a patient"), 400
+                return jsonify({"message":"User is not a patient"}), 400
             userReservations = Reservation.query.filter(Reservation.patient == user.user_name).filter(Reservation.status == "confirmed").order_by(Reservation.date).order_by(Reservation.time)
             if (userReservations.count() != 2):
-                return jsonify("Patient has not taken his second dose yet, doses taken: " + userReservations.count()), 400
+                return jsonify({"message":"Patient has not taken his second dose yet, doses taken: " + userReservations.count()}), 400
             
             latex_doc = CERTIFICATE_TEMPLATE % (user.first_name+" "+user.last_name, user.date_of_birth,userReservations[0].date, userReservations[1].date)
             #print(latex_doc)
@@ -494,7 +494,7 @@ def delete_all_reservations():
     for reservation in reservations:
         db.session.delete(reservation)
     db.session.commit()
-    return jsonify("All reservations deleted"), 200
+    return jsonify({"message":"All reservations deleted"}), 200
 
 def decode_token(token):
     payload = jwt.decode(token, SECRET_KEY, 'HS256')
@@ -524,7 +524,7 @@ def get_personel_history():
                 abort(403)
             reservations = Reservation.query.filter(Reservation.personel == user.user_name).filter(Reservation.date>=datetime.datetime.today()).order_by(Reservation.date).order_by(Reservation.time)
             if (reservations.count() == 0):
-                return jsonify("No reservations found"), 400
+                return jsonify({"message":"No reservations found"}), 400
             return jsonify(reservations_schema.dump(reservations)), 200
         except jwt.ExpiredSignatureError:
             abort(403)
@@ -544,7 +544,7 @@ def get_user_history():
                 abort(403)
             reservations = Reservation.query.filter(Reservation.patient == user.user_name).order_by(Reservation.date).order_by(Reservation.time)
             if (reservations.count() == 0):
-                return jsonify("No reservations found"), 400
+                return jsonify({"message":"No reservations found"}), 400
             return jsonify(reservations_schema.dump(reservations)), 200
         except jwt.ExpiredSignatureError:
             abort(403)
@@ -565,7 +565,7 @@ def get_patient_reservation():
             patient = request.args.get("user")
             reservations = Reservation.query.filter(Reservation.patient == patient).order_by(Reservation.date).order_by(Reservation.time)
             if (reservations.count() == 0):
-                return jsonify("No reservations found"), 404
+                return jsonify({"message":"No reservations found"}), 404
             return jsonify(reservations_schema.dump(reservations)), 200
         except jwt.ExpiredSignatureError:
             abort(403)
