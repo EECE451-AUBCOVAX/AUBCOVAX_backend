@@ -33,5 +33,4 @@ jobs:
        - name: 'Install package on Azure Web App'
         uses: azure/cli@v1.0.0
         with:
-          inlineScript: |
-            az webapp run --name "${{ env.AZURE_WEBAPP_NAME }}" --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" --command "apt-get install -y texlive-latex-base"
+          inlineScript: az webapp run --name "${{ env.AZURE_WEBAPP_NAME }}" --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" --command "apt-get install -y texlive-latex-base"
