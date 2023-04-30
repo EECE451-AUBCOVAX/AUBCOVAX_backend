@@ -455,7 +455,7 @@ def get_certificate():
                 return jsonify({"message":"User is not a patient"}), 400
             userReservations = Reservation.query.filter(Reservation.patient == user.user_name).filter(Reservation.status == "confirmed").order_by(Reservation.date).order_by(Reservation.time)
             if (userReservations.count() != 2):
-                return jsonify({"message":"Patient has not taken his second dose yet, doses taken: " + userReservations.count()}), 400
+                return jsonify({"message":"You have not taken both of your doses yet, doses taken: " + str(userReservations.count())}), 400
             
             latex_doc = CERTIFICATE_TEMPLATE % (user.first_name+" "+user.last_name, user.date_of_birth,userReservations[0].date, userReservations[1].date)
             #print(latex_doc)
