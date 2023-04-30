@@ -465,7 +465,10 @@ def get_certificate():
             proc = subprocess.run(['pdflatex', '-jobname', "output", '-interaction', 'nonstopmode'], input=latex_input.getvalue().encode(), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             if os.path.exists(user.user_name+'.pdf'):
                 os.remove(user.user_name+'.pdf')
-            os.rename(get_pdf_name()+".pdf", user.user_name+'.pdf')
+            try:
+                os.rename(get_pdf_name()+".pdf", user.user_name+'.pdf')
+            except:
+                return jsonify({"message":"Try again in a bit"}), 429
             #print(proc.stdout.decode())
             with open(user.user_name+'.pdf', 'rb') as file:
                 pdf_output = file.read()
@@ -486,7 +489,7 @@ def get_certificate():
             abort(403)
         except jwt.InvalidTokenError:
             abort(403)
-        
+    abort(403)
 
 def extract_auth_token(authenticated_request):
     auth_header = authenticated_request.headers.get('Authorization')
