@@ -21,9 +21,6 @@ jobs:
     steps:
       - name: Checkout the code
         uses: actions/checkout@v3
-
-      - name: Set up pdflatex
-        run: sudo apt-get install texlive-latex-base texlive-fonts-recommended texlive-fonts-extra texlive-latex-extra
         
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
@@ -31,3 +28,4 @@ jobs:
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          startup-command: apt-get install -y texlive-latex-base
