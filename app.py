@@ -24,6 +24,16 @@ from validate_email_address import validate_email
 import subprocess
 from io import StringIO
 from time import sleep
+import platform
+
+systemversion = platform.system()
+
+def get_pdf_name():
+    if (systemversion == "Windows"):
+        return "output"
+    else:
+        return "texput"
+
 
 # Set up the email message
 
@@ -455,15 +465,16 @@ def get_certificate():
             proc = subprocess.run(['pdflatex', '-jobname', "output", '-interaction', 'nonstopmode'], input=latex_input.getvalue().encode(), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             if os.path.exists(user.user_name+'.pdf'):
                 os.remove(user.user_name+'.pdf')
-            os.rename("output.pdf", user.user_name+'.pdf')
+            os.rename(get_pdf_name()+".pdf", user.user_name+'.pdf')
             #print(proc.stdout.decode())
             with open(user.user_name+'.pdf', 'rb') as file:
                 pdf_output = file.read()
                 pdf_bytes = BytesIO(pdf_output)
                 file.close()
                 try:
-                    os.remove("output"+".aux")
-                    os.remove("output"+".log")
+                    
+                    os.remove(get_pdf_name()+".aux")
+                    os.remove(get_pdf_name()+".log")
                     os.remove(user.user_name+".pdf")
                 except:
                     pass
